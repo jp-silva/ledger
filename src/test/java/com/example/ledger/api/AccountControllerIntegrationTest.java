@@ -1,5 +1,11 @@
 package com.example.ledger.api;
 
+import com.example.ledger.models.Balance;
+import com.example.ledger.models.Transaction;
+
+import com.example.ledger.models.Transaction;
+import com.example.ledger.repository.BalanceRepository;
+import com.example.ledger.repository.TransactionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -7,10 +13,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,9 +31,14 @@ class AccountControllerIntegrationTest {
   public static final String DEPOSITS_PATH = "/v1/accounts/{accountId}/deposits";
   public static final String WITHDRAWALS_PATH = "/v1/accounts/{accountId}/withdrawals";
   public static final String BALANCE_PATH = "/v1/accounts/{accountId}/balance";
+  public static final String TRANSACTIONS_PATH = "/v1/accounts/{accountId}/transactions";
 
   @Autowired
   private MockMvc mockMvc;
+  @Autowired
+  private BalanceRepository balanceRepository;
+  @Autowired
+  private TransactionRepository transactionRepository;
 
   @Test
   void createDeposit_ShouldReturn201_WhenValidDepositRequest() throws Exception {
@@ -40,13 +55,14 @@ class AccountControllerIntegrationTest {
             post(DEPOSITS_PATH, accountId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
+            .andDo(print())
         .andExpect(status().isCreated())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.id").exists())
         .andExpect(jsonPath("$.type").value("DEPOSIT"))
         .andExpect(jsonPath("$.amount").value(depositAmount))
-        .andExpect(jsonPath("$.balance").value(depositAmount))
         .andExpect(jsonPath("$.createdAt").exists());
+    assertBalance(accountId, depositAmount);
   }
 
   @Test
@@ -67,7 +83,8 @@ class AccountControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(firstDepositBody))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.balance").value(firstDepositAmount));
+            .andExpect(jsonPath("$.amount").value(firstDepositAmount));
+    assertBalance(accountId, firstDepositAmount);
 
     // When - Second deposit
     String secondDepositBody = """
@@ -78,9 +95,10 @@ class AccountControllerIntegrationTest {
                     post(DEPOSITS_PATH, accountId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(secondDepositBody))
+            .andDo(print())
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.amount").value(secondDepositAmount))
-            .andExpect(jsonPath("$.balance").value(expectedTotalBalance));
+            .andExpect(jsonPath("$.amount").value(secondDepositAmount));
+    assertBalance(accountId, expectedTotalBalance);
   }
 
 
@@ -93,16 +111,8 @@ class AccountControllerIntegrationTest {
     Integer withdrawalAmount = 5000; // Amount in cents
     Integer expectedBalance = initialDepositAmount - withdrawalAmount;
 
-    // Setup initial balance with a deposit
-    String depositBody = """
-            { "amount": %d }
-            """.formatted(initialDepositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(depositBody))
-        .andExpect(status().isCreated());
+    // Setup initial balance
+    setInitialBalance(accountId, initialDepositAmount);
 
     // When - Create withdrawal
     String requestBody = """
@@ -120,8 +130,8 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.id").exists())
         .andExpect(jsonPath("$.type").value("WITHDRAWAL"))
         .andExpect(jsonPath("$.amount").value(withdrawalAmount))
-        .andExpect(jsonPath("$.balance").value(expectedBalance))
         .andExpect(jsonPath("$.createdAt").exists());
+    assertBalance(accountId, expectedBalance);
   }
 
   @Test
@@ -134,16 +144,8 @@ class AccountControllerIntegrationTest {
     Integer expectedBalanceAfterFirstWithdrawal = initialDepositAmount - firstWithdrawalAmount;
     Integer expectedFinalBalance = initialDepositAmount - firstWithdrawalAmount - secondWithdrawalAmount;
 
-    // Setup initial balance with a deposit
-    String depositBody = """
-            { "amount": %d }
-            """.formatted(initialDepositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(depositBody))
-        .andExpect(status().isCreated());
+    // Setup initial balance
+    setInitialBalance(accountId, initialDepositAmount);
 
     // When - First withdrawal
     String firstWithdrawalBody = """
@@ -154,8 +156,8 @@ class AccountControllerIntegrationTest {
                     post(WITHDRAWALS_PATH, accountId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(firstWithdrawalBody))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.balance").value(expectedBalanceAfterFirstWithdrawal));
+            .andExpect(status().isCreated());
+  assertBalance(accountId, expectedBalanceAfterFirstWithdrawal);
 
     // When - Second withdrawal
     String secondWithdrawalBody = """
@@ -167,13 +169,13 @@ class AccountControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(secondWithdrawalBody))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.amount").value(secondWithdrawalAmount))
-            .andExpect(jsonPath("$.balance").value(expectedFinalBalance));
+            .andExpect(jsonPath("$.amount").value(secondWithdrawalAmount));
+    assertBalance(accountId, expectedFinalBalance);
   }
 
   // GET BALANCE TESTS
   @Test
-  void getBalance_ShouldReturnZeroBalance_WhenAccountHasNoTransactions() throws Exception {
+  void getBalance_ShouldReturnZeroBalance_WhenBalanceWasNotInitiated() throws Exception {
     // Given
     UUID accountId = UUID.randomUUID();
 
@@ -186,21 +188,13 @@ class AccountControllerIntegrationTest {
   }
 
   @Test
-  void getBalance_ShouldReturnCorrectBalance_AfterDeposit() throws Exception {
+  void getBalance_ShouldReturnCorrectBalance() throws Exception {
     // Given
     UUID accountId = UUID.randomUUID();
     Integer depositAmount = 12500;
 
-    // Setup balance with a deposit
-    String depositBody = """
-            { "amount": %d }
-            """.formatted(depositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(depositBody))
-        .andExpect(status().isCreated());
+    // Setup balance
+    setInitialBalance(accountId, depositAmount);
 
     // When & Then
     mockMvc
@@ -210,127 +204,108 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.amount").value(depositAmount));
   }
 
+  // GET TRANSACTIONS TESTS
   @Test
-  void getBalance_ShouldReturnCorrectBalance_AfterMultipleDeposits() throws Exception {
+  void getTransactions_ShouldReturnEmptyList_WhenNoTransactionsExist() throws Exception {
     // Given
     UUID accountId = UUID.randomUUID();
-    Integer firstDepositAmount = 8000;
-    Integer secondDepositAmount = 4500;
-    Integer expectedTotalBalance = firstDepositAmount + secondDepositAmount;
-
-    // Setup balance with multiple deposits
-    String firstDepositBody = """
-            { "amount": %d }
-            """.formatted(firstDepositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(firstDepositBody))
-        .andExpect(status().isCreated());
-
-    String secondDepositBody = """
-            { "amount": %d }
-            """.formatted(secondDepositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(secondDepositBody))
-        .andExpect(status().isCreated());
 
     // When & Then
     mockMvc
-        .perform(get(BALANCE_PATH, accountId))
+        .perform(get(TRANSACTIONS_PATH, accountId))
         .andExpect(status().isOk())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.amount").value(expectedTotalBalance));
+        .andExpect(jsonPath("$.transactions").isArray())
+        .andExpect(jsonPath("$.transactions").isEmpty());
   }
 
   @Test
-  void getBalance_ShouldReturnCorrectBalance_AfterDepositAndWithdrawal() throws Exception {
+  void getTransactions_ShouldReturnSingleTransaction_WhenOneTransactionExists() throws Exception {
     // Given
     UUID accountId = UUID.randomUUID();
-    Integer depositAmount = 20000;
-    Integer withdrawalAmount = 7500;
-    Integer expectedBalance = depositAmount - withdrawalAmount;
-
-    // Setup balance with deposit and withdrawal
-    String depositBody = """
-            { "amount": %d }
-            """.formatted(depositAmount);
-    mockMvc
-        .perform(
-            post(DEPOSITS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(depositBody))
-        .andExpect(status().isCreated());
-
-    String withdrawalBody = """
-            { "amount": %d }
-            """.formatted(withdrawalAmount);
-    mockMvc
-        .perform(
-            post(WITHDRAWALS_PATH, accountId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(withdrawalBody))
-        .andExpect(status().isCreated());
+    Integer depositAmount = 10000;
+    var transaction = new Transaction(UUID.randomUUID(), accountId, depositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
 
     // When & Then
     mockMvc
-        .perform(get(BALANCE_PATH, accountId))
+        .perform(get(TRANSACTIONS_PATH, accountId))
         .andExpect(status().isOk())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.amount").value(expectedBalance));
+        .andExpect(jsonPath("$.transactions").isArray())
+        .andExpect(jsonPath("$.transactions").isNotEmpty())
+        .andExpect(jsonPath("$.transactions[0].id").exists())
+        .andExpect(jsonPath("$.transactions[0].type").value("DEPOSIT"))
+        .andExpect(jsonPath("$.transactions[0].amount").value(depositAmount))
+        .andExpect(jsonPath("$.transactions[0].createdAt").exists());
   }
 
   @Test
-  void getBalance_ShouldReturnCorrectBalance_AfterComplexTransactionHistory() throws Exception {
+  void getTransactions_ShouldReturnMultipleTransactions_WhenMultipleTransactionsExist() throws Exception {
     // Given
     UUID accountId = UUID.randomUUID();
     Integer firstDepositAmount = 15000;
-    Integer secondDepositAmount = 10000;
-    Integer firstWithdrawalAmount = 5000;
-    Integer thirdDepositAmount = 3000;
-    Integer secondWithdrawalAmount = 2000;
-    Integer expectedFinalBalance = firstDepositAmount + secondDepositAmount - firstWithdrawalAmount + thirdDepositAmount - secondWithdrawalAmount;
-
-    // Setup complex transaction history
-    // First deposit
-    String firstDepositBody = """
-            { "amount": %d }
-            """.formatted(firstDepositAmount);
-    mockMvc.perform(post(DEPOSITS_PATH, accountId).contentType(MediaType.APPLICATION_JSON).content(firstDepositBody)).andExpect(status().isCreated());
-
-    // Second deposit
-    String secondDepositBody = """
-            { "amount": %d }
-            """.formatted(secondDepositAmount);
-    mockMvc.perform(post(DEPOSITS_PATH, accountId).contentType(MediaType.APPLICATION_JSON).content(secondDepositBody)).andExpect(status().isCreated());
-
-    // First withdrawal
-    String firstWithdrawalBody = """
-            { "amount": %d }
-            """.formatted(firstWithdrawalAmount);
-    mockMvc.perform(post(WITHDRAWALS_PATH, accountId).contentType(MediaType.APPLICATION_JSON).content(firstWithdrawalBody)).andExpect(status().isCreated());
-
-    // Third deposit
-    String thirdDepositBody = """
-            { "amount": %d }
-            """.formatted(thirdDepositAmount);
-    mockMvc.perform(post(DEPOSITS_PATH, accountId).contentType(MediaType.APPLICATION_JSON).content(thirdDepositBody)).andExpect(status().isCreated());
-
-    // Second withdrawal
-    String secondWithdrawalBody = """
-            { "amount": %d }
-            """.formatted(secondWithdrawalAmount);
-    mockMvc.perform(post(WITHDRAWALS_PATH, accountId).contentType(MediaType.APPLICATION_JSON).content(secondWithdrawalBody)).andExpect(status().isCreated());
+    Integer withdrawalAmount = 5000;
+    Integer secondDepositAmount = 8000;
+    var transaction = new Transaction(UUID.randomUUID(), accountId, firstDepositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
+    transaction = new Transaction(UUID.randomUUID(), accountId, withdrawalAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
+    transaction = new Transaction(UUID.randomUUID(), accountId, secondDepositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
 
     // When & Then
     mockMvc
-        .perform(get(BALANCE_PATH, accountId))
+        .perform(get(TRANSACTIONS_PATH, accountId))
         .andExpect(status().isOk())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.amount").value(expectedFinalBalance));
+        .andExpect(jsonPath("$.transactions").isArray())
+        .andExpect(jsonPath("$.transactions.length()").value(3))
+        .andExpect(jsonPath("$.transactions[0].type").value("DEPOSIT"))
+        .andExpect(jsonPath("$.transactions[0].amount").value(firstDepositAmount))
+        .andExpect(jsonPath("$.transactions[1].type").value("WITHDRAWAL"))
+        .andExpect(jsonPath("$.transactions[1].amount").value(withdrawalAmount))
+        .andExpect(jsonPath("$.transactions[2].type").value("DEPOSIT"))
+        .andExpect(jsonPath("$.transactions[2].amount").value(secondDepositAmount));
+  }
+
+  @Test
+  void getTransactions_ShouldReturnOnlyAccountSpecificTransactions() throws Exception {
+    // Given
+    UUID firstAccountId = UUID.randomUUID();
+    UUID secondAccountId = UUID.randomUUID();
+    Integer firstAccountDepositAmount = 12000;
+    Integer secondAccountDepositAmount = 8000;
+    var transaction = new Transaction(UUID.randomUUID(), firstAccountId, firstAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
+    transaction = new Transaction(UUID.randomUUID(), secondAccountId, secondAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    transactionRepository.addTransaction(transaction);
+
+    // When - Get transactions for first account
+    mockMvc
+        .perform(get(TRANSACTIONS_PATH, firstAccountId))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.transactions").isArray())
+        .andExpect(jsonPath("$.transactions.length()").value(1))
+        .andExpect(jsonPath("$.transactions[0].amount").value(firstAccountDepositAmount));
+
+    // Then - Get transactions for second account
+    mockMvc
+        .perform(get(TRANSACTIONS_PATH, secondAccountId))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.transactions").isArray())
+        .andExpect(jsonPath("$.transactions.length()").value(1))
+        .andExpect(jsonPath("$.transactions[0].amount").value(secondAccountDepositAmount));
+  }
+
+  private void assertBalance(UUID accountId, Integer amount) {
+    assertTrue(balanceRepository.getBalance(accountId).isPresent());
+    assertEquals(amount, balanceRepository.getBalance(accountId).get().amount());
+  }
+
+  private void setInitialBalance(UUID accountId, Integer amount) {
+    balanceRepository.saveBalance(accountId, new Balance(amount, OffsetDateTime.now()));
   }
 }

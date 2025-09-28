@@ -1,25 +1,25 @@
 package com.example.ledger.service;
 
 import com.example.ledger.models.Balance;
-import com.example.ledger.models.Deposit;
 import com.example.ledger.models.Transaction;
 import com.example.ledger.repository.TransactionRepository;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AccountService {
+public class TransactionService {
   private final TransactionRepository transactionRepository;
   private final BalanceService balanceService;
 
-  public AccountService(
+  public TransactionService(
       TransactionRepository transactionRepository, BalanceService balanceService) {
     this.transactionRepository = transactionRepository;
     this.balanceService = balanceService;
   }
 
-  public Deposit createDeposit(UUID accountId, Integer depositAmount) {
+  public Transaction createDeposit(UUID accountId, Integer depositAmount) {
     var transactionTimestamp = OffsetDateTime.now();
 
     // get the balance if it exists and update it, otherwise create a new balance. then store it.
@@ -32,15 +32,14 @@ public class AccountService {
     Transaction transaction =
         new Transaction(
             transactionUUID,
+            accountId,
             depositAmount,
             Transaction.TransactionType.DEPOSIT,
             transactionTimestamp);
-    transactionRepository.addTransaction(transaction);
-
-    return new Deposit(transactionUUID, depositAmount, newBalance.amount(), transactionTimestamp);
+    return transactionRepository.addTransaction(transaction);
   }
 
-  public Deposit createWithdrawal(UUID accountId, Integer withdrawalAmount) {
+  public Transaction createWithdrawal(UUID accountId, Integer withdrawalAmount) {
     var transactionTimestamp = OffsetDateTime.now();
 
     // get the balance and check if it has sufficient funds
@@ -58,12 +57,14 @@ public class AccountService {
     Transaction transaction =
         new Transaction(
             transactionUUID,
+            accountId,
             withdrawalAmount,
             Transaction.TransactionType.WITHDRAWAL,
             transactionTimestamp);
-    transactionRepository.addTransaction(transaction);
+    return transactionRepository.addTransaction(transaction);
+  }
 
-    return new Deposit(
-        transactionUUID, withdrawalAmount, newBalance.amount(), transactionTimestamp);
+  public List<Transaction> getTransactions(UUID accountId) {
+    return transactionRepository.getTransactions(accountId);
   }
 }

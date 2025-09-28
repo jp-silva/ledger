@@ -105,9 +105,7 @@ paths:
           content:
             application/json:
               schema:
-                type: "array"
-                items:
-                  $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/TransactionsListResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -164,13 +162,19 @@ components:
           type: "integer"
           description: "The transaction amount in the minor currency unit (e.g., cents)."
           example: 15075
-        balance:
-          type: "integer"
-          example: 15075
         createdAt:
           type: "string"
           format: "date-time"
           example: "2025-09-28T10:30:00Z"
+
+    TransactionsListResponse:
+      type: "object"
+      description: "Represents a list of transactions for an account."
+      properties:
+        transactions:
+          type: "array"
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
 
     Error:
       type: "object"
