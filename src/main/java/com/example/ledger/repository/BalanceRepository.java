@@ -16,7 +16,8 @@ public class BalanceRepository {
     return Optional.ofNullable(accountBalance.get(accountId));
   }
 
-  public void saveBalance(UUID accountId, Balance newBalance) {
+  public Balance saveBalance(UUID accountId, Balance newBalance) {
     accountBalance.put(accountId, newBalance);
+    return newBalance;
   }
 }

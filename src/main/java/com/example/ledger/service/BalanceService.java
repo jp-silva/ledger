@@ -3,6 +3,7 @@ package com.example.ledger.service;
 import com.example.ledger.models.Balance;
 import com.example.ledger.repository.BalanceRepository;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -15,12 +16,14 @@ public class BalanceService {
   }
 
   public Balance getBalance(UUID accountId) {
-    // get the balance if it exists and update it, otherwise create a new balance. then store it.
-    Balance newBalance =
-        balanceRepository.getBalance(accountId).orElse(new Balance(0, OffsetDateTime.now()));
-    balanceRepository.saveBalance(accountId, newBalance);
+    Optional<Balance> balance = balanceRepository.getBalance(accountId);
 
-    return newBalance;
+    if (balance.isEmpty()) {
+      Balance newBalance = new Balance(0, OffsetDateTime.now());
+      return balanceRepository.saveBalance(accountId, newBalance);
+    } else {
+      return balance.get();
+    }
   }
 
   public void saveBalance(UUID accountId, Balance newBalance) {
