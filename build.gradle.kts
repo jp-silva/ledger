@@ -12,6 +12,8 @@ group = "com.example"
 version = "0.0.1-SNAPSHOT"
 description = "API to interact with a ledger"
 
+val mapstructVersion = "1.6.3"
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -25,10 +27,12 @@ repositories {
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
-
+	implementation("org.mapstruct:mapstruct:${mapstructVersion}")
 	// OpenAPI/Swagger dependencies
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13")
 	implementation("org.openapitools:jackson-databind-nullable:0.2.7")
+
+	annotationProcessor("org.mapstruct:mapstruct-processor:${mapstructVersion}")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")

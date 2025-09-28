@@ -24,14 +24,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TransactionRequest'
+              $ref: '#/components/schemas/DepositRequest'
       responses:
         '201':
           description: "Deposit successful. Returns the created transaction."
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/TransactionResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -52,14 +52,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TransactionRequest'
+              $ref: '#/components/schemas/WithdrawalRequest'
       responses:
         '201':
           description: "Withdrawal successful. Returns the created transaction."
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/TransactionResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -86,7 +86,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Balance'
+                $ref: '#/components/schemas/BalanceResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -107,44 +107,52 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: '#/components/schemas/Transaction'
+                  $ref: '#/components/schemas/TransactionResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
 components:
   schemas:
-    Amount:
+    DepositRequest:
       type: "object"
-      description: "Represents a monetary amount."
-      required:
-        - "value"
-      properties:
-        value:
-          type: "integer"
-          description: "The amount value in the minor currency unit (e.g., cents)."
-          example: 15075
-
-    TransactionRequest:
-      type: "object"
-      description: "Payload for creating a transaction."
+      description: "Payload for creating a deposit transaction."
       required:
         - "amount"
       properties:
         amount:
-          $ref: '#/components/schemas/Amount'
+          type: "integer"
+          format: "int32"
+          minimum: 1
+          description: "The deposit amount, in cents. Must be a positive integer."
+          example: 15075
 
-    Balance:
+    WithdrawalRequest:
+      type: "object"
+      description: "Payload for creating a withdrawal transaction."
+      required:
+        - "amount"
+      properties:
+        amount:
+          type: "integer"
+          format: "int32"
+          minimum: 1
+          description: "The withdrawal amount, in cents. Must be a positive integer."
+          example: 15075
+
+    BalanceResponse:
       type: "object"
       description: "Represents the account's balance."
       properties:
         balance:
-          $ref: '#/components/schemas/Amount'
+          type: "integer"
+          description: "The balance amount in the minor currency unit (e.g., cents)."
+          example: 15075
 
-    Transaction:
+    TransactionResponse:
       type: "object"
       description: "Represents a single account transaction."
       properties:
-        transactionId:
+        id:
           type: "string"
           format: "uuid"
           example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
@@ -153,8 +161,13 @@ components:
           enum: ["DEPOSIT", "WITHDRAWAL"]
           example: "DEPOSIT"
         amount:
-          $ref: '#/components/schemas/Amount'
-        timestamp:
+          type: "integer"
+          description: "The transaction amount in the minor currency unit (e.g., cents)."
+          example: 15075
+        balance:
+          type: "integer"
+          example: 15075
+        createdAt:
           type: "string"
           format: "date-time"
           example: "2025-09-28T10:30:00Z"
