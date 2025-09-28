@@ -143,7 +143,7 @@ components:
       type: "object"
       description: "Represents the account's balance."
       properties:
-        balance:
+        amount:
           type: "integer"
           description: "The balance amount in the minor currency unit (e.g., cents)."
           example: 15075
