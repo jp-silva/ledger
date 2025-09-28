@@ -162,6 +162,10 @@ components:
           type: "integer"
           description: "The transaction amount in the minor currency unit (e.g., cents)."
           example: 15075
+        balance:
+          type: "integer"
+          description: "The balance in the minor currency unit (e.g., cents), after the transaction."
+          example: 15075
         createdAt:
           type: "string"
           format: "date-time"

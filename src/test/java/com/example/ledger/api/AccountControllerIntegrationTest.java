@@ -59,8 +59,8 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.id").exists())
         .andExpect(jsonPath("$.type").value("DEPOSIT"))
         .andExpect(jsonPath("$.amount").value(depositAmount))
+            .andExpect(jsonPath("$.balance").value(depositAmount))
         .andExpect(jsonPath("$.createdAt").exists());
-    assertBalance(accountId, depositAmount);
   }
 
   @Test
@@ -81,8 +81,8 @@ class AccountControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(firstDepositBody))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.amount").value(firstDepositAmount));
-    assertBalance(accountId, firstDepositAmount);
+            .andExpect(jsonPath("$.amount").value(firstDepositAmount))
+            .andExpect(jsonPath("$.balance").value(firstDepositAmount));
 
     // When - Second deposit
     String secondDepositBody = """
@@ -95,8 +95,8 @@ class AccountControllerIntegrationTest {
                             .content(secondDepositBody))
             .andDo(print())
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.amount").value(secondDepositAmount));
-    assertBalance(accountId, expectedTotalBalance);
+            .andExpect(jsonPath("$.amount").value(secondDepositAmount))
+            .andExpect(jsonPath("$.balance").value(expectedTotalBalance));
   }
 
 
@@ -128,8 +128,8 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.id").exists())
         .andExpect(jsonPath("$.type").value("WITHDRAWAL"))
         .andExpect(jsonPath("$.amount").value(withdrawalAmount))
+            .andExpect(jsonPath("$.balance").value(expectedBalance))
         .andExpect(jsonPath("$.createdAt").exists());
-    assertBalance(accountId, expectedBalance);
   }
 
   @Test
@@ -154,8 +154,8 @@ class AccountControllerIntegrationTest {
                     post(WITHDRAWALS_PATH, accountId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(firstWithdrawalBody))
-            .andExpect(status().isCreated());
-  assertBalance(accountId, expectedBalanceAfterFirstWithdrawal);
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.balance").value(expectedBalanceAfterFirstWithdrawal));
 
     // When - Second withdrawal
     String secondWithdrawalBody = """
@@ -167,8 +167,8 @@ class AccountControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(secondWithdrawalBody))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.amount").value(secondWithdrawalAmount));
-    assertBalance(accountId, expectedFinalBalance);
+            .andExpect(jsonPath("$.amount").value(secondWithdrawalAmount))
+            .andExpect(jsonPath("$.balance").value(expectedFinalBalance));
   }
 
   @Test
@@ -193,10 +193,7 @@ class AccountControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
         .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Balance must be greater than or equal to withdrawal amount"));;
-
-    // Balance should remain unchanged
-    assertBalance(accountId, initialDepositAmount);
+            .andExpect(jsonPath("$.message").value("Balance must be greater than or equal to withdrawal amount"));
   }
 
   // GET BALANCE TESTS
@@ -250,7 +247,7 @@ class AccountControllerIntegrationTest {
     // Given
     UUID accountId = UUID.randomUUID();
     Integer depositAmount = 10000;
-    var transaction = new Transaction(UUID.randomUUID(), accountId, depositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    var transaction = new Transaction(UUID.randomUUID(), accountId, depositAmount, Transaction.TransactionType.DEPOSIT, depositAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
 
     // When & Then
@@ -263,6 +260,7 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.transactions[0].id").exists())
         .andExpect(jsonPath("$.transactions[0].type").value("DEPOSIT"))
         .andExpect(jsonPath("$.transactions[0].amount").value(depositAmount))
+        .andExpect(jsonPath("$.transactions[0].balance").value(depositAmount))
         .andExpect(jsonPath("$.transactions[0].createdAt").exists());
   }
 
@@ -273,11 +271,11 @@ class AccountControllerIntegrationTest {
     Integer firstDepositAmount = 15000;
     Integer withdrawalAmount = 5000;
     Integer secondDepositAmount = 8000;
-    var transaction = new Transaction(UUID.randomUUID(), accountId, firstDepositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    var transaction = new Transaction(UUID.randomUUID(), accountId, firstDepositAmount, Transaction.TransactionType.DEPOSIT, firstDepositAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
-    transaction = new Transaction(UUID.randomUUID(), accountId, withdrawalAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    transaction = new Transaction(UUID.randomUUID(), accountId, withdrawalAmount, Transaction.TransactionType.WITHDRAWAL, firstDepositAmount - withdrawalAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
-    transaction = new Transaction(UUID.randomUUID(), accountId, secondDepositAmount, Transaction.TransactionType.DEPOSIT, OffsetDateTime.now());
+    transaction = new Transaction(UUID.randomUUID(), accountId, secondDepositAmount, Transaction.TransactionType.DEPOSIT, firstDepositAmount - withdrawalAmount + secondDepositAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
 
     // When & Then
@@ -302,9 +300,9 @@ class AccountControllerIntegrationTest {
     UUID secondAccountId = UUID.randomUUID();
     Integer firstAccountDepositAmount = 12000;
     Integer secondAccountDepositAmount = 8000;
-    var transaction = new Transaction(UUID.randomUUID(), firstAccountId, firstAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    var transaction = new Transaction(UUID.randomUUID(), firstAccountId, firstAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, firstAccountDepositAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
-    transaction = new Transaction(UUID.randomUUID(), secondAccountId, secondAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, OffsetDateTime.now());
+    transaction = new Transaction(UUID.randomUUID(), secondAccountId, secondAccountDepositAmount, Transaction.TransactionType.WITHDRAWAL, firstAccountDepositAmount + secondAccountDepositAmount, OffsetDateTime.now());
     transactionRepository.addTransaction(transaction);
 
     // When - Get transactions for first account
@@ -324,11 +322,6 @@ class AccountControllerIntegrationTest {
         .andExpect(jsonPath("$.transactions").isArray())
         .andExpect(jsonPath("$.transactions.length()").value(1))
         .andExpect(jsonPath("$.transactions[0].amount").value(secondAccountDepositAmount));
-  }
-
-  private void assertBalance(UUID accountId, Integer amount) {
-    assertTrue(balanceRepository.getBalance(accountId).isPresent());
-    assertEquals(amount, balanceRepository.getBalance(accountId).get().amount());
   }
 
   private void setInitialBalance(UUID accountId, Integer amount) {

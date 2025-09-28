@@ -48,6 +48,7 @@ class TransactionServiceTest {
             testAccountId,
             500,
             Transaction.TransactionType.DEPOSIT,
+            500,
             testTime
         );
     }
@@ -88,6 +89,7 @@ class TransactionServiceTest {
                 testAccountId,
                 300,
                 Transaction.TransactionType.WITHDRAWAL,
+                0,
                 testTime
         );
         when(balanceService.getBalance(testAccountId)).thenReturn(testBalance);
@@ -140,6 +142,7 @@ class TransactionServiceTest {
             testAccountId,
             500,
             Transaction.TransactionType.DEPOSIT,
+            500,
             testTime
         );
         Transaction transaction2 = new Transaction(
@@ -147,6 +150,7 @@ class TransactionServiceTest {
             testAccountId,
             200,
             Transaction.TransactionType.WITHDRAWAL,
+            300,
             testTime.plusMinutes(10)
         );
         List<Transaction> expectedTransactions = Arrays.asList(transaction1, transaction2);

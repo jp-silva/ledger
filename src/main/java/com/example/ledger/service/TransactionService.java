@@ -36,6 +36,7 @@ public class TransactionService {
             accountId,
             depositAmount,
             Transaction.TransactionType.DEPOSIT,
+            newBalance.amount(),
             transactionTimestamp);
     return transactionRepository.addTransaction(transaction);
   }
@@ -61,6 +62,7 @@ public class TransactionService {
             accountId,
             withdrawalAmount,
             Transaction.TransactionType.WITHDRAWAL,
+            newBalance.amount(),
             transactionTimestamp);
     return transactionRepository.addTransaction(transaction);
   }
