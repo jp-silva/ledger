@@ -1,5 +1,6 @@
 package com.example.ledger.service;
 
+import com.example.ledger.exceptions.InsufficientFundsException;
 import com.example.ledger.models.Balance;
 import com.example.ledger.models.Transaction;
 import com.example.ledger.repository.TransactionRepository;
@@ -45,7 +46,7 @@ public class TransactionService {
     // get the balance and check if it has sufficient funds
     Balance currentBalance = balanceService.getBalance(accountId);
     if (currentBalance.amount() < withdrawalAmount) {
-      throw new IllegalArgumentException(
+      throw new InsufficientFundsException(
           "Balance must be greater than or equal to withdrawal amount");
     }
     Balance newBalance =

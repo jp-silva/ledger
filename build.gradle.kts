@@ -1,5 +1,3 @@
-import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
-
 plugins {
 	java
 	id("org.springframework.boot") version "3.5.6"

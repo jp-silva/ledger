@@ -2,8 +2,6 @@ package com.example.ledger.api;
 
 import com.example.ledger.models.Balance;
 import com.example.ledger.models.Transaction;
-
-import com.example.ledger.models.Transaction;
 import com.example.ledger.repository.BalanceRepository;
 import com.example.ledger.repository.TransactionRepository;
 import org.junit.jupiter.api.Test;
@@ -171,6 +169,34 @@ class AccountControllerIntegrationTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.amount").value(secondWithdrawalAmount));
     assertBalance(accountId, expectedFinalBalance);
+  }
+
+  @Test
+  void createWithdrawal_ShouldReturn400_WhenInsufficientBalance() throws Exception {
+    // Given
+    UUID accountId = UUID.randomUUID();
+    Integer initialDepositAmount = 5000; // Amount in cents
+    Integer withdrawalAmount = 10000; // Amount greater than balance
+
+    // Setup initial balance
+    setInitialBalance(accountId, initialDepositAmount);
+
+    // When - Attempt withdrawal with insufficient balance
+    String requestBody = """
+            { "amount": %d }
+            """.formatted(withdrawalAmount);
+
+    // Then - Should return 400 Bad Request
+    mockMvc
+        .perform(
+            post(WITHDRAWALS_PATH, accountId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
+        .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Balance must be greater than or equal to withdrawal amount"));;
+
+    // Balance should remain unchanged
+    assertBalance(accountId, initialDepositAmount);
   }
 
   // GET BALANCE TESTS
