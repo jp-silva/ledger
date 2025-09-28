@@ -1,0 +1,195 @@
+openapi: 3.0.3
+info:
+  title: Ledger API
+  description: A simple API for managing account deposits, withdrawals, and balances.
+  version: 1.0.0
+
+servers:
+  - url: /
+    description: Relative server path
+
+paths:
+  /v1/accounts/{accountId}/deposits:
+    post:
+      summary: "Create a Deposit"
+      description: "Credits a specified amount to the account."
+      operationId: "createDeposit"
+      tags:
+        - "Account"
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      requestBody:
+        description: "The object with all the deposit details."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+      responses:
+        '201':
+          description: "Deposit successful. Returns the created transaction."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/accounts/{accountId}/withdrawals:
+    post:
+      summary: "Create a Withdrawal"
+      description: "Debits a specified amount from the account."
+      operationId: "createWithdrawal"
+      tags:
+        - "Account"
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      requestBody:
+        description: "The amount to withdraw."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+      responses:
+        '201':
+          description: "Withdrawal successful. Returns the created transaction."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: "Unprocessable Entity. Typically used for insufficient funds."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/accounts/{accountId}/balance:
+    get:
+      summary: "Get Account Balance"
+      description: "Retrieves the current balance for a specified account."
+      operationId: "getBalance"
+      tags:
+        - "Account"
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: "The current account balance."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Balance'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/accounts/{accountId}/transactions:
+    get:
+      summary: "Get Transaction History"
+      description: "Retrieves a list of all transactions for a specified account."
+      operationId: "getTransactions"
+      tags:
+        - "Account"
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: "A list of transactions for the account."
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Amount:
+      type: "object"
+      description: "Represents a monetary amount."
+      required:
+        - "value"
+      properties:
+        value:
+          type: "integer"
+          description: "The amount value in the minor currency unit (e.g., cents)."
+          example: 15075
+
+    TransactionRequest:
+      type: "object"
+      description: "Payload for creating a transaction."
+      required:
+        - "amount"
+      properties:
+        amount:
+          $ref: '#/components/schemas/Amount'
+
+    Balance:
+      type: "object"
+      description: "Represents the account's balance."
+      properties:
+        balance:
+          $ref: '#/components/schemas/Amount'
+
+    Transaction:
+      type: "object"
+      description: "Represents a single account transaction."
+      properties:
+        transactionId:
+          type: "string"
+          format: "uuid"
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        type:
+          type: "string"
+          enum: ["DEPOSIT", "WITHDRAWAL"]
+          example: "DEPOSIT"
+        amount:
+          $ref: '#/components/schemas/Amount'
+        timestamp:
+          type: "string"
+          format: "date-time"
+          example: "2025-09-28T10:30:00Z"
+
+    Error:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+          example: "INVALID_AMOUNT"
+        message:
+          type: "string"
+          example: "Amount must be greater than zero."
+
+  parameters:
+    AccountId:
+      name: "accountId"
+      in: "path"
+      required: true
+      description: "The unique identifier of the account."
+      schema:
+        type: "string"
+        format: "uuid"
+      example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+
+  responses:
+    NotFound:
+      description: "The specified account was not found."
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: "The request is malformed (e.g., negative amount)."
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
